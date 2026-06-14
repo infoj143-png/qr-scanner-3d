@@ -1,0 +1,450 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>QR Scanner 3D - Scan QR Codes Instantly</title>
+  <meta name="description" content="A premium 3D QR scanner website with camera scan and image upload QR detection." />
+  <script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.js"></script>
+  <style>
+    :root{
+      --bg:#030712;
+      --glass:rgba(255,255,255,.09);
+      --border:rgba(255,255,255,.18);
+      --text:#f8fafc;
+      --muted:#cbd5e1;
+      --cyan:#22d3ee;
+      --blue:#3b82f6;
+      --purple:#a855f7;
+      --pink:#ec4899;
+      --green:#22c55e;
+      --danger:#fb7185;
+    }
+
+    *{margin:0;padding:0;box-sizing:border-box;font-family:Inter,Segoe UI,Arial,sans-serif}
+
+    body{
+      min-height:100vh;
+      color:var(--text);
+      background:
+        radial-gradient(circle at 15% 10%, rgba(34,211,238,.25), transparent 28%),
+        radial-gradient(circle at 85% 20%, rgba(168,85,247,.26), transparent 30%),
+        radial-gradient(circle at 50% 85%, rgba(236,72,153,.18), transparent 35%),
+        linear-gradient(135deg,#020617,#030712 45%,#0f172a);
+      overflow-x:hidden;
+      padding:22px;
+    }
+
+    .noise{
+      position:fixed;inset:0;pointer-events:none;opacity:.08;z-index:0;
+      background-image:url("data:image/svg+xml,%3Csvg viewBox='0 0 180 180' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.8' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+    }
+
+    .orb{
+      position:fixed;border-radius:999px;filter:blur(30px);opacity:.55;z-index:0;
+      animation: drift 8s ease-in-out infinite alternate;
+    }
+    .orb.one{width:210px;height:210px;background:var(--cyan);left:-60px;top:80px}
+    .orb.two{width:260px;height:260px;background:var(--purple);right:-90px;top:160px;animation-delay:1s}
+    .orb.three{width:190px;height:190px;background:var(--pink);left:35%;bottom:-70px;animation-delay:2s}
+    @keyframes drift{to{transform:translate3d(30px,-40px,0) scale(1.08)}}
+
+    .wrap{
+      position:relative;z-index:1;width:100%;max-width:1120px;margin:0 auto;
+      min-height:calc(100vh - 44px);display:flex;align-items:center;justify-content:center;
+    }
+
+    .hero{
+      width:100%;
+      display:grid;
+      grid-template-columns:1.1fr .9fr;
+      gap:26px;
+      align-items:center;
+    }
+
+    .left,.scanner-card{
+      background:linear-gradient(145deg,rgba(255,255,255,.12),rgba(255,255,255,.05));
+      border:1px solid var(--border);
+      border-radius:34px;
+      backdrop-filter:blur(22px);
+      box-shadow:0 35px 90px rgba(0,0,0,.45), inset 0 1px 0 rgba(255,255,255,.2);
+    }
+
+    .left{
+      padding:42px;
+      transform-style:preserve-3d;
+      animation: floatBox 5s ease-in-out infinite;
+    }
+    @keyframes floatBox{50%{transform:translateY(-8px) rotateX(1.5deg) rotateY(-1.5deg)}}
+
+    .badge{
+      display:inline-flex;gap:8px;align-items:center;
+      padding:10px 14px;border-radius:999px;
+      background:rgba(34,211,238,.12);
+      border:1px solid rgba(34,211,238,.35);
+      color:#a5f3fc;font-weight:700;font-size:14px;
+      margin-bottom:22px;
+    }
+
+    h1{
+      font-size:clamp(38px,6vw,72px);
+      line-height:.95;letter-spacing:-2px;margin-bottom:18px;
+      background:linear-gradient(90deg,#fff,#67e8f9,#c084fc,#f9a8d4);
+      -webkit-background-clip:text;background-clip:text;color:transparent;
+      text-shadow:0 0 35px rgba(34,211,238,.15);
+    }
+
+    .subtitle{
+      color:var(--muted);
+      font-size:18px;
+      line-height:1.7;
+      max-width:610px;
+      margin-bottom:28px;
+    }
+
+    .features{
+      display:grid;
+      grid-template-columns:repeat(3,1fr);
+      gap:12px;
+      margin-top:26px;
+    }
+
+    .feature{
+      border-radius:18px;
+      padding:15px 12px;
+      background:rgba(255,255,255,.07);
+      border:1px solid rgba(255,255,255,.12);
+      text-align:center;
+      box-shadow:0 12px 30px rgba(0,0,0,.18);
+    }
+    .feature b{display:block;font-size:22px;margin-bottom:4px}
+    .feature span{font-size:12px;color:#cbd5e1}
+
+    .scanner-card{
+      padding:24px;
+      position:relative;
+      overflow:hidden;
+    }
+    .scanner-card:before{
+      content:"";position:absolute;inset:-2px;
+      background:linear-gradient(120deg,transparent,rgba(34,211,238,.22),transparent,rgba(168,85,247,.22),transparent);
+      opacity:.65;pointer-events:none;
+    }
+
+    .phone{
+      position:relative;
+      border-radius:32px;
+      background:linear-gradient(160deg,rgba(15,23,42,.95),rgba(2,6,23,.88));
+      border:1px solid rgba(255,255,255,.15);
+      padding:18px;
+      box-shadow:inset 0 0 0 1px rgba(255,255,255,.06), 0 28px 70px rgba(0,0,0,.45);
+      transform:perspective(900px) rotateY(-4deg) rotateX(4deg);
+    }
+
+    .topbar{
+      display:flex;align-items:center;justify-content:space-between;
+      color:#cbd5e1;font-size:13px;margin-bottom:15px;
+    }
+    .dot{width:9px;height:9px;border-radius:50%;background:var(--green);box-shadow:0 0 18px var(--green)}
+
+    .scan-frame{
+      position:relative;
+      min-height:330px;
+      border-radius:26px;
+      overflow:hidden;
+      background:
+        linear-gradient(rgba(34,211,238,.08) 1px,transparent 1px),
+        linear-gradient(90deg,rgba(34,211,238,.08) 1px,transparent 1px),
+        radial-gradient(circle at center,rgba(34,211,238,.16),rgba(15,23,42,.75));
+      background-size:30px 30px,30px 30px,auto;
+      border:1px solid rgba(34,211,238,.28);
+      display:flex;align-items:center;justify-content:center;
+      margin-bottom:16px;
+    }
+
+    .scan-frame:after{
+      content:"";position:absolute;left:8%;right:8%;height:3px;
+      background:linear-gradient(90deg,transparent,var(--cyan),#fff,var(--cyan),transparent);
+      box-shadow:0 0 25px var(--cyan),0 0 55px var(--blue);
+      animation: scanline 2.2s linear infinite;
+      border-radius:999px;
+    }
+    @keyframes scanline{0%{top:12%}50%{top:86%}100%{top:12%}}
+
+    .corner{position:absolute;width:58px;height:58px;border-color:var(--cyan);filter:drop-shadow(0 0 10px var(--cyan))}
+    .c1{left:22px;top:22px;border-left:4px solid;border-top:4px solid;border-radius:14px 0 0 0}
+    .c2{right:22px;top:22px;border-right:4px solid;border-top:4px solid;border-radius:0 14px 0 0}
+    .c3{left:22px;bottom:22px;border-left:4px solid;border-bottom:4px solid;border-radius:0 0 0 14px}
+    .c4{right:22px;bottom:22px;border-right:4px solid;border-bottom:4px solid;border-radius:0 0 14px 0}
+
+    .qr-icon{
+      font-size:76px;
+      filter:drop-shadow(0 0 28px rgba(34,211,238,.7));
+      animation:pulse 2s ease-in-out infinite;
+    }
+    @keyframes pulse{50%{transform:scale(1.08);opacity:.72}}
+
+    video,canvas{width:100%;border-radius:24px;display:none;position:absolute;inset:0;height:100%;object-fit:cover;z-index:2}
+    video.show{display:block}
+    canvas{display:none}
+
+    .btns{display:grid;gap:12px}
+    button,.upload-label{
+      width:100%;border:0;border-radius:18px;padding:15px 16px;
+      color:#fff;font-weight:800;font-size:16px;cursor:pointer;
+      transition:.25s ease;letter-spacing:.2px;
+    }
+    button:hover,.upload-label:hover{transform:translateY(-2px) scale(1.01)}
+    .primary{background:linear-gradient(135deg,var(--blue),var(--purple));box-shadow:0 15px 36px rgba(59,130,246,.28)}
+    .secondary{display:block;text-align:center;background:linear-gradient(135deg,#0891b2,#14b8a6);box-shadow:0 15px 36px rgba(20,184,166,.25)}
+    .danger{background:linear-gradient(135deg,#e11d48,#fb7185);display:none}
+    .copy{background:linear-gradient(135deg,#16a34a,#22c55e)}
+    input{display:none}
+
+    .result{
+      display:none;margin-top:16px;border-radius:22px;
+      padding:16px;background:rgba(2,6,23,.6);
+      border:1px solid rgba(255,255,255,.12);
+      box-shadow:inset 0 0 35px rgba(34,211,238,.06);
+    }
+    .result h3{margin-bottom:9px;color:#a5f3fc}
+    .result p{word-break:break-word;color:#e2e8f0;line-height:1.5;margin-bottom:12px}
+    .result a{color:#67e8f9;text-decoration:none}
+
+    .mini{
+      margin-top:14px;text-align:center;color:#94a3b8;font-size:13px;
+    }
+
+    .toast{
+      position:fixed;left:50%;bottom:24px;transform:translateX(-50%) translateY(20px);
+      background:rgba(15,23,42,.92);border:1px solid rgba(34,211,238,.3);
+      color:#fff;padding:13px 18px;border-radius:999px;z-index:5;
+      opacity:0;transition:.25s ease;box-shadow:0 14px 40px rgba(0,0,0,.35);
+    }
+    .toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+
+    @media(max-width:900px){
+      body{padding:14px}
+      .wrap{min-height:auto;padding:10px 0}
+      .hero{grid-template-columns:1fr}
+      .left{padding:30px 22px}
+      .features{grid-template-columns:1fr 1fr}
+      .phone{transform:none}
+      .scan-frame{min-height:290px}
+    }
+    @media(max-width:480px){
+      h1{letter-spacing:-1px}
+      .features{grid-template-columns:1fr}
+      .scanner-card{padding:16px;border-radius:28px}
+      .scan-frame{min-height:260px}
+    }
+  </style>
+</head>
+<body>
+  <div class="noise"></div>
+  <div class="orb one"></div>
+  <div class="orb two"></div>
+  <div class="orb three"></div>
+
+  <main class="wrap">
+    <section class="hero">
+      <div class="left">
+        <div class="badge"><span class="dot"></span> Live Camera QR Scanner</div>
+        <h1>Scan QR Codes in 3D Style</h1>
+        <p class="subtitle">
+          A premium futuristic QR scanner website with camera scanning, image upload scanning,
+          neon glassmorphism UI, and mobile-friendly design. No backend required.
+        </p>
+
+        <div class="features">
+          <div class="feature"><b>📷</b><span>Camera Scan</span></div>
+          <div class="feature"><b>🖼️</b><span>Image Upload</span></div>
+          <div class="feature"><b>⚡</b><span>Fast Result</span></div>
+        </div>
+      </div>
+
+      <div class="scanner-card">
+        <div class="phone">
+          <div class="topbar">
+            <span>QR Scanner 3D</span>
+            <span>Secure • Browser</span>
+          </div>
+
+          <div class="scan-frame" id="scanFrame">
+            <video id="video" autoplay playsinline></video>
+            <canvas id="canvas"></canvas>
+            <span class="corner c1"></span>
+            <span class="corner c2"></span>
+            <span class="corner c3"></span>
+            <span class="corner c4"></span>
+            <div class="qr-icon" id="qrIcon">▦</div>
+          </div>
+
+          <div class="btns">
+            <button class="primary" onclick="startCamera()">📷 Scan with Camera</button>
+            <label class="upload-label secondary" for="fileInput">🖼 Upload QR Image</label>
+            <input type="file" id="fileInput" accept="image/*" />
+            <button class="danger" id="stopBtn" onclick="stopCamera()">⛔ Stop Camera</button>
+          </div>
+
+          <div class="result" id="resultBox">
+            <h3>Scan Result</h3>
+            <p id="resultText"></p>
+            <button class="copy" onclick="copyResult()">📋 Copy Result</button>
+          </div>
+
+          <p class="mini">Tip: Camera works best on HTTPS after Vercel deploy.</p>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <div class="toast" id="toast">Copied successfully!</div>
+
+  <script>
+    const video = document.getElementById("video");
+    const canvas = document.getElementById("canvas");
+    const ctx = canvas.getContext("2d");
+    const resultBox = document.getElementById("resultBox");
+    const resultText = document.getElementById("resultText");
+    const fileInput = document.getElementById("fileInput");
+    const stopBtn = document.getElementById("stopBtn");
+    const qrIcon = document.getElementById("qrIcon");
+    const toast = document.getElementById("toast");
+
+    let scanning = false;
+    let finalResult = "";
+    let currentStream = null;
+
+    function showToast(message){
+      toast.textContent = message;
+      toast.classList.add("show");
+      setTimeout(() => toast.classList.remove("show"), 1800);
+    }
+
+    function showResult(text){
+      finalResult = text;
+      resultBox.style.display = "block";
+
+      if(text.startsWith("http://") || text.startsWith("https://")){
+        resultText.innerHTML = `<a href="${text}" target="_blank" rel="noopener">${text}</a>`;
+      } else {
+        resultText.textContent = text;
+      }
+
+      showToast("QR code detected!");
+      stopCamera(false);
+    }
+
+    async function startCamera(){
+      resultBox.style.display = "none";
+
+      if(!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia){
+        alert("Your browser does not support camera scanning.");
+        return;
+      }
+
+      try{
+        currentStream = await navigator.mediaDevices.getUserMedia({
+          video: { facingMode: { ideal: "environment" } },
+          audio: false
+        });
+
+        video.srcObject = currentStream;
+        video.classList.add("show");
+        qrIcon.style.display = "none";
+        stopBtn.style.display = "block";
+        scanning = true;
+        requestAnimationFrame(scanQR);
+      }catch(e){
+        alert("Camera permission allow karo. Mobile par Vercel HTTPS link se test karna best hai.");
+      }
+    }
+
+    function stopCamera(showIcon = true){
+      scanning = false;
+      if(currentStream){
+        currentStream.getTracks().forEach(track => track.stop());
+        currentStream = null;
+      }
+      video.classList.remove("show");
+      video.srcObject = null;
+      stopBtn.style.display = "none";
+      if(showIcon) qrIcon.style.display = "block";
+    }
+
+    function scanQR(){
+      if(!scanning) return;
+
+      if(video.readyState === video.HAVE_ENOUGH_DATA){
+        canvas.width = video.videoWidth;
+        canvas.height = video.videoHeight;
+        ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+
+        const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+        const code = jsQR(imageData.data, imageData.width, imageData.height);
+
+        if(code && code.data){
+          showResult(code.data);
+          return;
+        }
+      }
+
+      requestAnimationFrame(scanQR);
+    }
+
+    fileInput.addEventListener("change", function(){
+      const file = this.files[0];
+      if(!file) return;
+
+      resultBox.style.display = "none";
+      stopCamera();
+
+      const img = new Image();
+      img.onload = function(){
+        canvas.width = img.width;
+        canvas.height = img.height;
+        ctx.drawImage(img, 0, 0, img.width, img.height);
+
+        const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+        const code = jsQR(imageData.data, imageData.width, imageData.height);
+
+        if(code && code.data){
+          showResult(code.data);
+        } else {
+          alert("QR code detect nahi hua. Clear QR image upload karo.");
+        }
+
+        URL.revokeObjectURL(img.src);
+        fileInput.value = "";
+      };
+
+      img.onerror = function(){
+        alert("Image open nahi hui. Please koi clear image upload karo.");
+      };
+
+      img.src = URL.createObjectURL(file);
+    });
+
+    async function copyResult(){
+      if(!finalResult){
+        alert("Pehle QR scan karo.");
+        return;
+      }
+
+      try{
+        await navigator.clipboard.writeText(finalResult);
+        showToast("Copied successfully!");
+      }catch(e){
+        const temp = document.createElement("textarea");
+        temp.value = finalResult;
+        document.body.appendChild(temp);
+        temp.select();
+        document.execCommand("copy");
+        document.body.removeChild(temp);
+        showToast("Copied successfully!");
+      }
+    }
+  </script>
+</body>
+</html>
